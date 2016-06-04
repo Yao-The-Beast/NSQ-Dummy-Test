@@ -4,9 +4,11 @@ import "net"
 import "fmt"
 import "os"
 import "time"
+import "strconv"
+import "io/ioutil"
 import "encoding/binary"
 
-var MESSAGESIZE int = 1000
+var MESSAGESIZE int = 1024
 var MESSAGES int = 10000
 var CLIENTS int = 128
 
@@ -37,10 +39,12 @@ func main(){
 }
 
 func handleConnection(c net.Conn, id int){
-    var latencies []int64
-    buf := make([]byte,MESSAGESIZE)
+    
+    var oneWayLatencies []byte
     
     for i:=0; i < MESSAGES; i++ {
+        buf := make([]byte,MESSAGESIZE)
+        //receive message
         n, err := c.Read(buf)
         if err != nil || n != MESSAGESIZE {
             fmt.Println("HANDLE ERROR")
@@ -50,15 +54,16 @@ func handleConnection(c net.Conn, id int){
            currentTime := time.Now().UnixNano()
 	       sentTime, _ := binary.Varint(buf)
            latency := currentTime - sentTime
-           latencies = append(latencies,latency)
+           x := strconv.FormatInt(latency,10)
+           oneWayLatencies = append(oneWayLatencies,x...)
+           oneWayLatencies = append(oneWayLatencies,"\n"...)
         }  
+        
+        //send message
+        buffer2 := make([]byte,MESSAGESIZE)
+        binary.PutVarint(buffer2, time.Now().UnixNano())
+        c.Write(buffer2)
     }
-    if id == 1 {
-        sum := int64(0)
-        for _, latency := range latencies {
-                sum += latency
-        }
-        averageLatency := int64(sum) / int64(len(latencies)) / 1000
-        fmt.Printf("Latency is %d \n", averageLatency)
-    }
+    ioutil.WriteFile("client_server",oneWayLatencies,0777)
+    fmt.Println("END")
 }
